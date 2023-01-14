@@ -1,0 +1,18 @@
+#!/bin/bash
+export FIFO_ICAT="/tmp/mpd-icat-${PPID}"
+
+cleanup() {
+    rm "$FIFO_ICAT" 2>/dev/null
+    rm /tmp/mpd_cover.jpg 2>/dev/null
+    pkill -P $$ 2>/dev/null
+    pkill ncmpcpp_cover_art.sh
+}
+
+pkill -P $$ 2>/dev/null
+rm "$FIFO_ICAT" 2>/dev/null
+mkfifo "$FIFO_ICAT" >/dev/null
+trap cleanup EXIT 2>/dev/null
+tail --follow "$FIFO_ICAT" | xargs -L1 kitty +kitten icat >/dev/null 2>&1 & 
+
+ncmpcpp --quiet
+cleanup

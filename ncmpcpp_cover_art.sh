@@ -1,18 +1,17 @@
-#!/bin/sh
-# Cover art script for ncmpcpp-ueberzug
+#!/bin/bash
+# Cover art script for ncmpcpp-icat
 
 # SETTINGS
-music_library="$HOME/music"
-fallback_image="$HOME/.ncmpcpp/ncmpcpp-ueberzug/img/fallback.png"
-padding_top=3
-padding_bottom=1
-padding_right=1
+music_library="$HOME/Music"
+fallback_image="$HOME/.ncmpcpp/ncmpcpp-icat/img/fallback.png"
+padding_top=2
+padding_bottom=4
+padding_right=0
 max_width=0
 reserved_playlist_cols=30
 reserved_cols_in_percent="false"
-force_square="false"
+force_square="true"
 square_alignment="top"
-
 left_aligned="false"
 padding_left=
 
@@ -26,7 +25,8 @@ main() {
     kill_previous_instances >/dev/null 2>&1
     find_cover_image        >/dev/null 2>&1
     display_cover_image     2>/dev/null
-    detect_window_resizes   >/dev/null 2>&1
+    # detect_window_resizes   >/dev/null 2>&1
+    # notify-send -u low -i ${cover_path} " Now Playing" "`mpc current`" # uncomment for track change notifications
 }
 
 # ==== Main functions =========================================================
@@ -63,6 +63,7 @@ find_cover_image() {
     found_covers="$(find "$album_dir" -type d -exec find {} -maxdepth 1 -type f \
     -iregex ".*/.*\(${album}\|cover\|folder\|artwork\|front\).*[.]\\(jpe?g\|png\|gif\|bmp\)" \; )"
     cover_path="$(echo "$found_covers" | head -n1)"
+    notify-send $cover_path
     if [ -n "$cover_path" ]; then
         return
     fi
@@ -74,25 +75,25 @@ find_cover_image() {
 }
 
 display_cover_image() {
+    kitty +kitten icat --clear --silent
     compute_geometry
 
-    send_to_ueberzug \
-        action "add" \
-        identifier "mpd_cover" \
-        path "$cover_path" \
-        x "$ueber_left" \
-        y "$padding_top" \
-        height "$ueber_height" \
-        width "$ueber_width" \
-        synchronously_draw "True" \
-        scaler "forced_cover" \
-        scaling_position_x "0.5"
+    [[ $left_aligned == "true" ]] && alignment=left || alignment=right
+
+    send_to_icat \
+        "--silent" \
+        "--scale-up" \
+        "--align ${alignment}" \
+        "--stdin no" \
+        "--transfer-mode stream" \
+        "--place ${icat_width}x${icat_height}@${icat_left}x${padding_top}" \
+        "$cover_path"
 }
 
 detect_window_resizes() {
     {
         trap 'display_cover_image' WINCH
-        while :; do sleep .1; done
+        while :; do sleep 5; done
     } &
 }
 
@@ -107,12 +108,12 @@ compute_geometry() {
         guess_font_size
     fi
 
-    ueber_height=$(( term_lines - padding_top - padding_bottom ))
+    icat_height=$(( term_lines - padding_top - padding_bottom ))
     # Because Ueberzug uses characters as a unit we must multiply
     # the line count (height) by the font size ratio in order to
     # obtain an equivalent width in column count
-    ueber_width=$(( ueber_height * font_height / font_width ))
-    ueber_left=$(( term_cols - ueber_width - padding_right ))
+    icat_width=$(( icat_height * font_height / font_width ))
+    icat_left=$(( term_cols - icat_width - padding_right ))
 
     if [ "$left_aligned" = "true" ]; then
         compute_geometry_left_aligned
@@ -124,45 +125,45 @@ compute_geometry() {
 }
 
 compute_geometry_left_aligned() {
-    ueber_left=$padding_left
+    icat_left=$padding_left
     max_width_chars=$(( term_cols * max_width / 100 ))
     if [ "$max_width" != 0 ] &&
-        [ $(( ueber_width + padding_right + padding_left )) -gt "$max_width_chars" ]; then
-        ueber_width=$(( max_width_chars - padding_left - padding_right ))
+        [ $(( icat_width + padding_right + padding_left )) -gt "$max_width_chars" ]; then
+        icat_width=$(( max_width_chars - padding_left - padding_right ))
     fi
 }
 
 compute_geometry_right_aligned() {
     if [ "$reserved_cols_in_percent" = "true" ]; then
-        ueber_left_percent=$(printf "%.0f\n" $(calc "$ueber_left" / "$term_cols" '*' 100))
-        if [ "$ueber_left_percent" -lt "$reserved_playlist_cols" ]; then
-            ueber_left=$(( term_cols * reserved_playlist_cols / 100  ))
-            ueber_width=$(( term_cols - ueber_left - padding_right ))
+        icat_left_percent=$(printf "%.0f\n" $(calc "$icat_left" / "$term_cols" '*' 100))
+        if [ "$icat_left_percent" -lt "$reserved_playlist_cols" ]; then
+            icat_left=$(( term_cols * reserved_playlist_cols / 100  ))
+            icat_width=$(( term_cols - icat_left - padding_right ))
         fi
     else
-        if [ "$ueber_left" -lt "$reserved_playlist_cols" ]; then
-            ueber_left=$reserved_playlist_cols
-            ueber_width=$(( term_cols - ueber_left - padding_right ))
+        if [ "$icat_left" -lt "$reserved_playlist_cols" ]; then
+            icat_left=$reserved_playlist_cols
+            icat_width=$(( term_cols - icat_left - padding_right ))
         fi
 
     fi
 
-    if [ "$max_width" != 0 ] && [ "$ueber_width" -gt "$max_width" ]; then
-        ueber_width=$max_width
-        ueber_left=$(( term_cols - ueber_width - padding_right ))
+    if [ "$max_width" != 0 ] && [ "$icat_width" -gt "$max_width" ]; then
+        icat_width=$max_width
+        icat_left=$(( term_cols - icat_width - padding_right ))
     fi
 }
 
 apply_force_square_setting() {
     if [ $force_square = "true" ]; then
-        ueber_height=$(( ueber_width * font_width / font_height ))
+        icat_height=$(( icat_width * font_width / font_height ))
         case "$square_alignment" in
             center)
                 area=$(( term_lines - padding_top - padding_bottom ))
-                padding_top=$(( padding_top + area / 2 - ueber_height / 2  ))
+                padding_top=$(( padding_top + area / 2 - icat_height / 2  ))
                 ;;
             bottom)
-                padding_top=$(( term_lines - padding_bottom - ueber_height ))
+                padding_top=$(( term_lines - padding_bottom - icat_height ))
                 ;;
             *) ;;
         esac
@@ -230,16 +231,16 @@ calc() {
     awk "BEGIN{print $*}"
 }
 
-send_to_ueberzug() {
-    old_IFS="$IFS"
+send_to_icat() {
+    # old_IFS="$IFS"
 
     # Ueberzug's "simple parser" uses tab-separated
     # keys and values so we separate words with tabs
     # and send the result to the wrapper's FIFO
-    IFS="$(printf "\t")"
-    echo "$*" > "$FIFO_UEBERZUG"
+    # IFS="$(printf "\t")"
+    echo "$*" > "$FIFO_ICAT"
 
-    IFS=${old_IFS}
+    # IFS=${old_IFS}
 }
 
 

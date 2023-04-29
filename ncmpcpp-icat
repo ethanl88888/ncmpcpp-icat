@@ -12,7 +12,7 @@ pkill -P $$ 2>/dev/null
 rm "$FIFO_ICAT" 2>/dev/null
 mkfifo "$FIFO_ICAT" >/dev/null
 trap cleanup EXIT 2>/dev/null
-tail --follow "$FIFO_ICAT" | xargs -L1 kitty +kitten icat >/dev/null 2>&1 & 
+tail --follow "$FIFO_ICAT" | xargs -L1 kitty +kitten icat & 
 
 ncmpcpp --quiet
 cleanup
